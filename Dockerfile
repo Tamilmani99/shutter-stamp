@@ -16,7 +16,6 @@ COPY frontend/public/ /frontend/public/
 
 # Create a dedicated non-root application user.
 RUN useradd --system --create-home appuser \
-    && mkdir -p /app/storage \
     && chown -R appuser:appuser /app
 
 # Run the application without root privileges.

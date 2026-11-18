@@ -62,20 +62,6 @@ STAMP_DIR = os.path.join(
 )
 
 # ---------------------------------------------------------
-# PERSISTENT STORAGE
-# ---------------------------------------------------------
-
-STORAGE_DIR = os.getenv(
-    "STORAGE_DIR",
-    os.path.join(BACKEND_DIR, "storage"),
-)
-
-os.makedirs(
-    STORAGE_DIR,
-    exist_ok=True,
-)
-
-# ---------------------------------------------------------
 # APPLICATION CONFIGURATION
 # ---------------------------------------------------------
 

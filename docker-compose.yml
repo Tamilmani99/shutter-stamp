@@ -6,10 +6,7 @@ services:
     container_name: shutter-stamp-backend
     ports:
       - "8000:8000"
-    volumes:
-      - shutter_stamp_storage:/app/storage
     environment:
-      STORAGE_DIR: /app/storage
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-20971520}
     restart: unless-stopped
     healthcheck:
@@ -31,5 +28,3 @@ services:
       condition: service_healthy
     restart: unless-stopped
 
-volumes:
-  shutter_stamp_storage:
