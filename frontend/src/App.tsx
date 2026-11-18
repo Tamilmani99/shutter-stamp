@@ -175,10 +175,10 @@ export default function App() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Your image must be 10 MB or smaller.");
-      return;
-    }
+if (file.size > 20 * 1024 * 1024) {
+  setError("Your image must be 20 MB or smaller.");
+  return;
+}
 
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
@@ -537,14 +537,14 @@ export default function App() {
                   </h3>
 
                   <p className="panel-subtitle">
-                    Upload one JPG or JPEG image, up to 10 MB.
+                    Upload one JPG or JPEG image, up to 20 MB.
                   </p>
                 </div>
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".jpg,.jpeg,image/jpeg"
+                  accept="image/*"
                   hidden
                   onChange={(event) =>
                     handleImageUpload(
@@ -608,7 +608,7 @@ export default function App() {
                     </span>
 
                     <span className="upload-limit">
-                      JPG / JPEG · MAXIMUM 10 MB
+                      JPG / JPEG · MAXIMUM 20 MB
                     </span>
                   </button>
                 )}

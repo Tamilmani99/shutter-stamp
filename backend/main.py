@@ -2,10 +2,11 @@ import io
 import os
 import random
 import textwrap
+import uuid
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
 
 from PIL import (
     Image,
@@ -26,7 +27,10 @@ app = FastAPI(title="Shutter Stamp API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +55,28 @@ FRONTEND_PUBLIC_DIR = os.path.abspath(
 STAMP_DIR = os.path.join(
     FRONTEND_PUBLIC_DIR,
     "postcard",
+)
+
+# ---------------------------------------------------------
+# PERSISTENT STORAGE
+# ---------------------------------------------------------
+
+STORAGE_DIR = os.getenv(
+    "STORAGE_DIR",
+    os.path.join(BACKEND_DIR, "storage"),
+)
+
+os.makedirs(
+    STORAGE_DIR,
+    exist_ok=True,
+)
+
+# ---------------------------------------------------------
+# APPLICATION CONFIGURATION
+# ---------------------------------------------------------
+
+MAX_FILE_SIZE = int(
+    os.getenv("MAX_FILE_SIZE", 20 * 1024 * 1024)
 )
 
 
@@ -759,6 +785,7 @@ def process_image(
     return image.convert("RGB")
 
 
+
 # ---------------------------------------------------------
 # API
 # ---------------------------------------------------------
@@ -767,6 +794,12 @@ def process_image(
 def root():
     return {
         "message": "Shutter Stamp API is running"
+    }
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy"
     }
 
 
@@ -788,19 +821,19 @@ async def process(
     }
 
     if file.content_type not in allowed_types:
-        return {
-            "error": "Only JPG and JPEG images are supported."
-        }
+     raise HTTPException(
+        status_code=415,
+        detail="Only JPG and JPEG images are supported."
+    )
 
     contents = await file.read()
 
-    # 10 MB maximum
-    max_file_size = 10 * 1024 * 1024
-
-    if len(contents) > max_file_size:
-        return {
-            "error": "Image size must be 10 MB or smaller."
-        }
+    # Check maximum upload size
+    if len(contents) > MAX_FILE_SIZE:
+     raise HTTPException(
+        status_code=413,
+        detail="Image size must be 20 MB or smaller."
+    )
 
     try:
         image = Image.open(
@@ -819,19 +852,30 @@ async def process(
             message=message,
         )
 
-        output = io.BytesIO()
+        # -------------------------------------------------
+        # SAVE PROCESSED IMAGE
+        # -------------------------------------------------
+
+        output_filename = f"{uuid.uuid4().hex}.jpg"
+
+        output_path = os.path.join(
+            STORAGE_DIR,
+            output_filename,
+        )
 
         result.save(
-            output,
+            output_path,
             format="JPEG",
             quality=94,
             optimize=True,
         )
 
-        output.seek(0)
+        print(
+            f"Processed image saved: {output_filename}"
+        )
 
-        return StreamingResponse(
-            output,
+        return FileResponse(
+            path=output_path,
             media_type="image/jpeg",
             headers={
                 "Content-Disposition": (
@@ -842,10 +886,11 @@ async def process(
         )
 
     except Exception as error:
-        print(
-            f"Image processing error: {error}"
-        )
+     print(
+        f"Image processing error: {error}"
+    )
 
-        return {
-            "error": str(error)
-        }
+    raise HTTPException(
+        status_code=500,
+        detail="Image processing failed. Please try again."
+    )
