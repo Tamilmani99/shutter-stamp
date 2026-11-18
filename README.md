@@ -135,15 +135,13 @@ The Docker named volume preserves processed images when containers are stopped a
 
 The processing endpoint accepts an image and customization details using multipart form data.
 
-## 💾 Persistent Storage
+### Image Processing and Privacy
 
-Processed images are saved in a Docker named volume mounted at:
+Uploaded images are processed in memory by the backend.
 
-```text
-/app/storage
-```
+Processed images are returned directly to the user's browser as downloadable files. The application does not permanently store uploaded or generated images on the server.
 
-This allows generated images to remain available inside the storage volume even after containers are restarted or recreated.
+Previously generated images in the Docker storage volume are retained, but new image processing does not write files to that volume.
 
 ## 🔒 Validation and Reliability
 

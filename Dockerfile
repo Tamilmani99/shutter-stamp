@@ -1,26 +1,26 @@
 
-# Python backend container
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend files
 COPY backend/requirements.txt ./requirements.txt
-
-# Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application
 COPY backend/ .
-
-# Copy frontend public assets (including stamps)
 COPY frontend/public/ /frontend/public/
+
+# Create a dedicated non-root application user.
+RUN useradd --system --create-home appuser \
+    && mkdir -p /app/storage \
+    && chown -R appuser:appuser /app
+
+# Run the application without root privileges.
+USER appuser
 
 EXPOSE 8000
 

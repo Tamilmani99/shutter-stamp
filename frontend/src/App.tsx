@@ -611,6 +611,16 @@ if (file.size > 20 * 1024 * 1024) {
                       JPG / JPEG · MAXIMUM 20 MB
                     </span>
                   </button>
+                                )}
+
+                {/* ERROR */}
+                {error && (
+                  <p
+                    className="form-error"
+                    role="alert"
+                  >
+                    {error}
+                  </p>
                 )}
 
               </div>

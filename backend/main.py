@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from PIL import (
     Image,
@@ -16,6 +16,8 @@ from PIL import (
     ImageFont,
     ImageOps,
 )
+
+from PIL.Image import DecompressionBombError
 
 Image.MAX_IMAGE_PIXELS = 40_000_000
 
@@ -1020,27 +1022,20 @@ async def process(
             message=message,
         )
 
-        # SAVE PROCESSED IMAGE
-        output_filename = f"{uuid.uuid4().hex}.jpg"
-
-        output_path = os.path.join(
-            STORAGE_DIR,
-            output_filename,
-        )
+                # RETURN PROCESSED IMAGE DIRECTLY
+        image_buffer = io.BytesIO()
 
         result.save(
-            output_path,
+            image_buffer,
             format="JPEG",
             quality=94,
             optimize=True,
         )
 
-        print(
-            f"Processed image saved: {output_filename}"
-        )
+        image_buffer.seek(0)
 
-        return FileResponse(
-            path=output_path,
+        return Response(
+            content=image_buffer.getvalue(),
             media_type="image/jpeg",
             headers={
                 "Content-Disposition": (
@@ -1052,6 +1047,12 @@ async def process(
 
     except HTTPException:
         raise
+
+    except DecompressionBombError:
+        raise HTTPException(
+            status_code=413,
+            detail="Image dimensions are too large."
+        )
 
     except Exception as error:
         print(
