@@ -17,6 +17,8 @@ from PIL import (
     ImageOps,
 )
 
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
 
 app = FastAPI(title="Shutter Stamp API")
 
@@ -346,79 +348,135 @@ def add_real_stamp(canvas: Image.Image):
 # PLACE + YEAR
 # ---------------------------------------------------------
 
+
+
 def draw_place_and_year(
     canvas: Image.Image,
     place: str,
     year: str,
+    photo_bottom: int,
 ):
     draw = ImageDraw.Draw(canvas)
 
     width, height = canvas.size
 
-    # Larger than before
     font_size = max(
         28,
         min(width, height) // 23,
     )
 
-    # Times New Roman Bold
     font = get_times_bold_font(
         font_size
     )
 
-    # IMPORTANT:
-    # No dot / bullet between place and year.
     if place and year:
-        text = f"{place} {year}"
+        text = f"{place.strip()} {year.strip()}"
     elif place:
-        text = place
+        text = place.strip()
     elif year:
-        text = year
+        text = year.strip()
     else:
         return canvas
 
-    bbox = draw.textbbox(
-        (0, 0),
-        text,
-        font=font,
+    margin = max(
+        35,
+        width // 25,
     )
 
-    text_width = (
-        bbox[2] - bbox[0]
+    padding_x = 12
+    padding_y = 8
+
+    max_text_width = (
+        width
+        - (margin * 2)
+        - (padding_x * 2)
     )
 
-    text_height = (
-        bbox[3] - bbox[1]
+    def get_text_width(value):
+        bbox = draw.textbbox(
+            (0, 0),
+            value,
+            font=font,
+        )
+
+        return bbox[2] - bbox[0]
+
+    words = text.split()
+
+    lines = []
+    current_line = ""
+
+    for word in words:
+        parts = []
+        remaining = word
+
+        while remaining:
+            if get_text_width(remaining) <= max_text_width:
+                parts.append(remaining)
+                break
+
+            chunk = ""
+
+            for character in remaining:
+                candidate = chunk + character
+
+                if get_text_width(candidate) > max_text_width:
+                    break
+
+                chunk = candidate
+
+            if not chunk:
+                chunk = remaining[0]
+
+            parts.append(chunk)
+            remaining = remaining[len(chunk):]
+
+        for part in parts:
+            candidate = (
+                f"{current_line} {part}".strip()
+            )
+
+            if (
+                current_line
+                and get_text_width(candidate) > max_text_width
+            ):
+                lines.append(current_line)
+                current_line = part
+            else:
+                current_line = candidate
+
+    if current_line:
+        lines.append(current_line)
+
+    line_height = font_size + 8
+
+    text_height = len(lines) * line_height
+
+    text_width = max(
+        get_text_width(line)
+        for line in lines
     )
 
     x = (
         width
+        - margin
+        - padding_x
         - text_width
-        - max(
-            35,
-            width // 25,
-        )
     )
 
+    # Anchor the backing to the photograph's bottom edge.
     y = (
-        height
+        photo_bottom
+        - padding_y
         - text_height
-        - max(
-            30,
-            height // 28,
-        )
     )
-
-    # Small warm paper backing
-    padding_x = 12
-    padding_y = 8
 
     draw.rounded_rectangle(
         (
             x - padding_x,
             y - padding_y,
             x + text_width + padding_x,
-            y + text_height + padding_y,
+            photo_bottom,
         ),
         radius=5,
         fill=(
@@ -429,22 +487,33 @@ def draw_place_and_year(
         ),
     )
 
-    draw.text(
-        (x, y),
-        text,
-        font=font,
-        fill=(
-            60,
-            50,
-            40,
-        ),
-    )
+    for line in lines:
+        line_width = get_text_width(line)
+
+        draw.text(
+            (
+                width - margin - padding_x - line_width,
+                y,
+            ),
+            line,
+            font=font,
+            fill=(
+                60,
+                50,
+                40,
+            ),
+        )
+
+        y += line_height
 
     return canvas
+
+
 
 # ---------------------------------------------------------
 # OPTIONAL LO-FI MESSAGE
 # ---------------------------------------------------------
+
 
 def draw_lofi_message(
     image: Image.Image,
@@ -463,11 +532,96 @@ def draw_lofi_message(
         ) // 20,
     )
 
+    max_text_width = max(
+        1,
+        image.width - (padding * 2),
+    )
+
+    draw = ImageDraw.Draw(image)
+
+    font_size = max(
+        27,
+        min(
+            image.width,
+            image.height,
+        ) // 24,
+    )
+
+    font = get_script_font(
+        font_size
+    )
+
+    def get_text_width(text):
+        bbox = draw.textbbox(
+            (0, 0),
+            text,
+            font=font,
+        )
+
+        return bbox[2] - bbox[0]
+
+    # Wrap the message and break long words.
+    words = message.strip().split()
+
+    lines = []
+    current_line = ""
+
+    for word in words:
+        word_parts = []
+        remaining_word = word
+
+        while remaining_word:
+            if get_text_width(remaining_word) <= max_text_width:
+                word_parts.append(remaining_word)
+                break
+
+            chunk = ""
+
+            for character in remaining_word:
+                candidate = chunk + character
+
+                if get_text_width(candidate) > max_text_width:
+                    break
+
+                chunk = candidate
+
+            if not chunk:
+                chunk = remaining_word[0]
+
+            word_parts.append(chunk)
+            remaining_word = remaining_word[len(chunk):]
+
+        for part in word_parts:
+            candidate = (
+                f"{current_line} {part}".strip()
+            )
+
+            if (
+                current_line
+                and get_text_width(candidate) > max_text_width
+            ):
+                lines.append(current_line)
+                current_line = part
+            else:
+                current_line = candidate
+
+    if current_line:
+        lines.append(current_line)
+
+    # Calculate the required message panel height.
+    line_height = font_size + 12
+
+    total_height = (
+        len(lines) * line_height
+    )
+
     message_area = max(
         125,
         image.height // 5,
+        total_height + 40,
     )
 
+    # Create a canvas with enough room for every line.
     canvas = Image.new(
         "RGB",
         (
@@ -490,46 +644,9 @@ def draw_lofi_message(
         canvas
     )
 
-    # Larger output text
-    font_size = max(
-        27,
-        min(
-            image.width,
-            image.height,
-        ) // 24,
-    )
-
-    # Bold script-style font
-    font = get_script_font(
-        font_size
-    )
-
-    max_chars = max(
-        22,
-        image.width // 16,
-    )
-
-    lines = textwrap.wrap(
-        message.strip(),
-        width=max_chars,
-    )
-
-    line_height = (
-        font_size + 12
-    )
-
-    total_height = (
-        len(lines)
-        * line_height
-    )
-
     start_y = (
         image.height
-        + (
-            message_area
-            - total_height
-        )
-        // 2
+        + (message_area - total_height) // 2
     )
 
     for line in lines:
@@ -544,12 +661,10 @@ def draw_lofi_message(
         )
 
         x = (
-            image.width
-            - line_width
+            image.width - line_width
         ) // 2
 
-        # Slight warm shadow underneath
-        # makes the script easier to read.
+        # Warm shadow.
         draw.text(
             (
                 x + 1,
@@ -564,6 +679,7 @@ def draw_lofi_message(
             ),
         )
 
+        # Main message.
         draw.text(
             (
                 x,
@@ -581,6 +697,7 @@ def draw_lofi_message(
         start_y += line_height
 
     return canvas
+
 
 # ---------------------------------------------------------
 # POSTCARD
@@ -623,7 +740,8 @@ def create_postcard(
         canvas,
         place,
         year,
-    )
+        border + image.height,
+)
 
     return canvas.convert("RGB")
 
@@ -782,7 +900,7 @@ def process_image(
             message,
         )
 
-    return image.convert("RGB")
+    raise ValueError("Unsupported image style.")
 
 
 
@@ -811,6 +929,39 @@ async def process(
     year: str = Form(""),
     message: str = Form(""),
 ):
+    allowed_styles = {
+        "lofi",
+        "postcard",
+        "with-love",
+    }
+
+    if style not in allowed_styles:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image style selected."
+        )
+    # Validate message length
+    if len(message) > 200:
+         raise HTTPException(
+             status_code=400,
+             detail="Message must be 200 characters or fewer."
+    )
+    # Validate place name
+    if len(place.strip()) > 80: 
+         raise HTTPException(
+             status_code=400,
+             detail="Place name must be 80 characters or fewer."
+    )
+
+    # Validate year
+    if year.strip() and not (
+       year.strip().isdigit()
+       and len(year.strip()) == 4
+):
+       raise HTTPException(
+           status_code=400,
+           detail="Please enter a valid four-digit year."
+    )
     # -----------------------------------------------------
     # BACKEND FILE VALIDATION
     # -----------------------------------------------------
@@ -826,19 +977,36 @@ async def process(
         detail="Only JPG and JPEG images are supported."
     )
 
-    contents = await file.read()
+    contents = await file.read(MAX_FILE_SIZE + 1)
 
     # Check maximum upload size
     if len(contents) > MAX_FILE_SIZE:
-     raise HTTPException(
+            raise HTTPException(
         status_code=413,
         detail="Image size must be 20 MB or smaller."
     )
+    
 
     try:
         image = Image.open(
             io.BytesIO(contents)
         )
+
+        # Prevent excessively large images
+        MAX_IMAGE_PIXELS = 40_000_000
+
+        if image.width * image.height > MAX_IMAGE_PIXELS:
+            raise HTTPException(
+                status_code=413,
+                detail="Image dimensions are too large."
+            )
+
+        # Verify the actual image format
+        if image.format != "JPEG":
+            raise HTTPException(
+                status_code=415,
+                detail="Only genuine JPG and JPEG images are supported."
+            )
 
         image = ImageOps.exif_transpose(
             image
@@ -852,10 +1020,7 @@ async def process(
             message=message,
         )
 
-        # -------------------------------------------------
         # SAVE PROCESSED IMAGE
-        # -------------------------------------------------
-
         output_filename = f"{uuid.uuid4().hex}.jpg"
 
         output_path = os.path.join(
@@ -885,12 +1050,16 @@ async def process(
             },
         )
 
-    except Exception as error:
-     print(
-        f"Image processing error: {error}"
-    )
+    except HTTPException:
+        raise
 
-    raise HTTPException(
-        status_code=500,
-        detail="Image processing failed. Please try again."
-    )
+    except Exception as error:
+        print(
+            f"Image processing error: {error}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Image processing failed. Please try again."
+        )
+    

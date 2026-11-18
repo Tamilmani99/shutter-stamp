@@ -722,10 +722,10 @@ if (file.size > 20 * 1024 * 1024) {
                         type="text"
                         value={place}
                         onChange={(event) =>
-                          setPlace(event.target.value)
+                          setPlace(event.target.value.slice(0, 80))
                         }
                         placeholder="e.g. Paris"
-                        maxLength={40}
+                        maxLength={80}
                       />
 
                     </div>
@@ -739,9 +739,12 @@ if (file.size > 20 * 1024 * 1024) {
                       <input
                         id="year"
                         type="text"
+                        inputMode="numeric"
                         value={year}
                         onChange={(event) =>
-                          setYear(event.target.value)
+                          setYear(
+                            event.target.value.replace(/\D/g, "").slice(0, 4)
+                          )
                         }
                         placeholder="e.g. 1927"
                         maxLength={4}
@@ -763,24 +766,24 @@ if (file.size > 20 * 1024 * 1024) {
                         : "Message"}
                     </label>
 
-                    <textarea
-                      id="message"
-                      value={message}
-                      onChange={(event) =>
-                        setMessage(event.target.value)
-                      }
-                      placeholder={
-                        selectedStyle === "lofi"
-                          ? "Write a short sentence to keep with this memory..."
-                          : "Write a short memory in English..."
-                      }
-                      maxLength={180}
-                      rows={3}
-                    />
+<textarea
+  id="message"
+  value={message}
+  onChange={(event) =>
+    setMessage(event.target.value)
+  }
+  placeholder={
+    selectedStyle === "lofi"
+      ? "Write a short sentence to keep with this memory..."
+      : "Write a short memory in English..."
+  }
+  maxLength={200}
+  rows={3}
+/>
 
-                    <span className="memory-character-count">
-                      {message.length}/180
-                    </span>
+<div className="character-count">
+  {message.length} / 200
+</div>
 
                   </div>
                 )}
